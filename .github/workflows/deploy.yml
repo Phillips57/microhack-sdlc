@@ -92,8 +92,9 @@ jobs:
         id: bootstrap
         run: |
           set -euo pipefail
+          BOOTSTRAP_DEPLOYMENT="octosupply-bootstrap-${GITHUB_RUN_ID}"
           az deployment group create \
-            --name octocat-bootstrap \
+            --name "$BOOTSTRAP_DEPLOYMENT" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --template-file infra/main.bicep \
             --parameters \
@@ -106,12 +107,12 @@ jobs:
               githubActionsPrincipalId="$AZURE_CLIENT_OBJECT_ID"
           ACR_NAME="$(az deployment group show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name octocat-bootstrap \
+            --name "$BOOTSTRAP_DEPLOYMENT" \
             --query properties.outputs.acrName.value \
             --output tsv)"
           ACR_LOGIN_SERVER="$(az deployment group show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name octocat-bootstrap \
+            --name "$BOOTSTRAP_DEPLOYMENT" \
             --query properties.outputs.acrLoginServer.value \
             --output tsv)"
           echo "acr_name=$ACR_NAME" >> "$GITHUB_OUTPUT"
@@ -150,8 +151,9 @@ jobs:
           ACR_LOGIN_SERVER: ${{ steps.bootstrap.outputs.acr_login_server }}
         run: |
           set -euo pipefail
+          APP_DEPLOYMENT="octosupply-app-${GITHUB_RUN_ID}"
           az deployment group create \
-            --name octocat-app \
+            --name "$APP_DEPLOYMENT" \
             --resource-group "$AZURE_RESOURCE_GROUP" \
             --template-file infra/main.bicep \
             --parameters \
@@ -164,7 +166,7 @@ jobs:
               githubActionsPrincipalId="$AZURE_CLIENT_OBJECT_ID"
           FRONTEND_URL="$(az deployment group show \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name octocat-app \
+            --name "$APP_DEPLOYMENT" \
             --query properties.outputs.frontendUrl.value \
             --output tsv)"
           echo "frontend_url=$FRONTEND_URL" >> "$GITHUB_OUTPUT"
