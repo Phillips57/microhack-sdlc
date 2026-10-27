@@ -10,7 +10,6 @@ declare global {
 const getBaseUrl = () => {
   // First check runtime configuration (from runtime-config.js)
   if (typeof window !== 'undefined' && window.RUNTIME_CONFIG?.API_URL) {
-    console.log('Using runtime config API_URL:', window.RUNTIME_CONFIG.API_URL);
     return window.RUNTIME_CONFIG.API_URL;
   }
 

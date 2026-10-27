@@ -21,7 +21,8 @@ async def get_connection() -> aiosqlite.Connection:
     connection = await aiosqlite.connect(_resolve_db_file())
     connection.row_factory = aiosqlite.Row
     await connection.execute("PRAGMA foreign_keys = ON;")
-    await connection.execute("PRAGMA journal_mode = WAL;")
+    if os.getenv("DB_ENABLE_WAL", "true").lower() != "false":
+        await connection.execute("PRAGMA journal_mode = WAL;")
     await connection.execute("PRAGMA busy_timeout = 30000;")
     try:
         yield connection

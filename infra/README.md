@@ -1,144 +1,83 @@
-# `infra/` — Challenge 5 starter scaffold (optional)
+# Azure deployment
 
-> **Optional starting point, not a required or "correct" answer.** This is a
-> deliberately incomplete **skeleton** for [Challenge 5 — Deploy into Azure](../challenges/challenge-05.md).
-> It removes blank-page boilerplate (structure, parameters, module wiring, OIDC
-> plumbing) so your 60 minutes go into the interesting agentic work — authoring
-> and refining the deploy with Copilot, deploying, and debugging — **not**
-> scaffolding. The meaningful engineering decisions are left as clearly-marked
-> `// TODO`s on purpose. Extend it, replace it, or ignore it.
+The GitHub Actions workflow builds and tests the app, creates its Azure resources
+with Bicep, publishes images to Azure Container Registry, deploys the containers,
+and verifies the live cart flow.
 
-## Intended topology
+## Architecture
 
-Azure **Container Apps** as the compute target:
+- **Azure Container Apps** hosts the React/nginx frontend and Python/FastAPI API.
+  Only the frontend has public ingress; nginx proxies `/api` over private,
+  same-environment ingress to the API.
+- **Azure Container Registry (Basic)** stores both images. Its admin account is
+  disabled. A user-assigned managed identity has `AcrPull`; the GitHub Actions
+  service principal has `AcrPush`.
+- **Azure Files (Standard LRS)** persists the SQLite database at `/app/data`.
+  The API is intentionally fixed to one replica and disables SQLite WAL on the
+  network share. This supports a persistent demo/cart flow, not a horizontally
+  scaled production database. Move to a managed database before scaling the API.
+- **Log Analytics** receives Container Apps logs.
 
+The API is the Python implementation because the shopping cart routes are
+implemented there. The frontend uses same-origin API URLs, so browser requests
+go through nginx and never need public access to the API.
+
+## GitHub setup (one time)
+
+Create an Entra application/service principal for GitHub Actions and configure
+an OIDC federated credential with subject:
+
+```text
+repo:<OWNER>/<REPOSITORY>:ref:refs/heads/main
 ```
-        Azure Container Registry (ACR)
-                 │  (holds api + frontend images)
-                 ▼
-   ┌──────────── Container Apps Environment ────────────┐
-   │                                                    │
-   │   frontend (nginx)            api (Node/Express)   │
-   │   external ingress :80  ────► ingress :3000        │
-   │   proxies /api via nginx      (internal OR external)│
-   │                                                    │
-   └────────────────────┬───────────────────────────────┘
-                        │ logs
-                        ▼
-             Log Analytics workspace
-```
 
-- **ACR** — stores the two images the apps pull.
-- **Log Analytics workspace** — a hard dependency of the Container Apps
-  environment; provisioned first.
-- **Container Apps Environment** — the shared boundary both apps run in. Apps in
-  the same environment can address each other by app name (service discovery).
-- **`api` Container App** — target port **3000** (matches `src/api-ts/Dockerfile`,
-  which `EXPOSE`s 3000 and runs `npm start`).
-- **`frontend` Container App** — external ingress on port **80** (matches
-  `src/frontend/Dockerfile`, nginx). It is configured with `API_HOST` /
-  `API_PORT` env vars pointing at the `api` app so nginx can reverse-proxy `/api`
-  (see `src/frontend/nginx.conf` + `src/frontend/entrypoint.sh`).
+Set these GitHub Actions **secrets**:
 
-## How the Bicep maps to the two Dockerfiles
-
-| Dockerfile | Port | Container App | Notes |
-| --- | --- | --- | --- |
-| `src/api-ts/Dockerfile` | `EXPOSE 3000` | `<prefix>-<env>-api` | `targetPort: 3000`. Ingress internal-vs-external is a **TODO** decision. |
-| `src/frontend/Dockerfile` | `EXPOSE 80` | `<prefix>-<env>-frontend` | `targetPort: 80`, external. Gets `API_HOST` = the api app name and `API_PORT` = `3000`. The entrypoint also honours `API_PROTOCOL` (default `https`). |
-
-The workflow builds each image from its own context (`src/api-ts` and
-`src/frontend`) and pushes to ACR; the Bicep then references those image tags.
-
-## Files
-
-| File | Purpose |
+| Secret | Value |
 | --- | --- |
-| `main.bicep` | `targetScope = 'resourceGroup'`. Wires ACR, Log Analytics, the environment, and the two apps by calling the modules. Declares parameters + outputs. |
-| `modules/registry.bicep` | ACR (stub — SKU/admin/network are TODO). |
-| `modules/loganalytics.bicep` | Log Analytics workspace (stub — retention/SKU TODO). |
-| `modules/containerapp-env.bicep` | Container Apps managed environment. |
-| `modules/containerapp.bicep` | Generic app module, reused for **both** api and frontend. |
-| `main.parameters.json` | Placeholder parameter values with TODO comments. |
+| `AZURE_CLIENT_ID` | Entra application/client ID |
+| `AZURE_TENANT_ID` | Entra tenant ID |
+| `AZURE_SUBSCRIPTION_ID` | Target subscription ID |
 
-## What's provided vs. deliberately left as `TODO`
+Set these GitHub Actions **variables**:
 
-**Provided (so you don't start from a blank page):**
+| Variable | Value |
+| --- | --- |
+| `AZURE_RESOURCE_GROUP` | Name for the deployment resource group |
+| `AZURE_LOCATION` | Azure region supporting Container Apps |
+| `AZURE_CLIENT_OBJECT_ID` | Service principal's object/principal ID |
 
-- Module structure and the wiring between them.
-- Sensible parameters (`location`, `namePrefix`, `environmentName`, image
-  references, `minReplicas` / `maxReplicas`) and outputs (ACR login server,
-  frontend URL, api FQDN).
-- The port mapping (api `3000`, frontend `80`) and the `API_HOST` / `API_PORT`
-  proxy wiring between frontend and api.
-- OIDC-based CI/CD plumbing in the workflow (no long-lived secrets).
+Grant that principal permission to create the resource group, deploy the
+resources, and assign the two narrowly scoped ACR roles. The simple built-in
+setup is **Contributor** and **User Access Administrator** at the subscription
+scope. A more restrictive custom role is appropriate for a long-lived
+production pipeline. No client secret or registry password is used.
 
-**Left as `TODO` (the decisions that make this a real deploy — do these):**
+## Deployment
 
-- **SKUs** — ACR tier, Log Analytics retention, container CPU/memory.
-- **api ingress visibility** — public (its own URL, easy debugging) vs.
-  internal-only (reached solely by the frontend inside the environment).
-- **Database / storage strategy** — the api ships with an in-container
-  **SQLite** DB. In Container Apps that is **ephemeral** (it resets on every
-  revision/scale event). Choose one: keep it ephemeral for a demo, mount an
-  **Azure Files** volume to persist it, or move to a **managed DB**
-  (Azure SQL / PostgreSQL) and inject a connection string. *Not decided for you.*
-- **Registry auth** — the scaffold defaults to ACR **admin credentials** for a
-  fast first deploy; the preferred approach is a **user-assigned managed
-  identity** with the `AcrPull` role (no secrets). Swap it in.
-- **Env vars / secrets** — real app configuration and how it's referenced.
-- **Scaling rules** — replica counts are set, but add real scale triggers
-  (HTTP concurrency, CPU, ...).
-- **Service discovery** — confirm the frontend→api wiring works with whichever
-  ingress visibility you pick.
+Push to `main` or run **Build, test, and deploy to Azure** with
+`workflow_dispatch`. The workflow:
 
-## Deploy it manually
+1. Builds the frontend and runs Python API tests.
+2. Validates both Bicep templates.
+3. Creates/updates the resource group and shared resources using Bicep.
+4. Builds and pushes the API and frontend images using the OIDC-authenticated
+   pipeline identity.
+5. Deploys the two Container Apps using Bicep.
+6. Exercises products and a cart add/read flow through the public frontend URL.
+
+The resource group deployment is defined in `resource-group.bicep`; all other
+Azure resources are defined in `main.bicep`. The first Bicep deployment creates
+the registry and supporting resources before any image push. The second deploys
+the app revisions with the newly published image tags.
+
+## Local Bicep validation
 
 ```bash
-# 1. Sanity-check the template compiles
-az bicep build --file infra/main.bicep        # or: bicep build infra/main.bicep
-
-# 2. Create a resource group
-az group create --name <rg-name> --location <region>
-
-# 3. Deploy (fill in the image references — see main.parameters.json TODOs)
-az deployment group create \
-  --resource-group <rg-name> \
-  --template-file infra/main.bicep \
-  --parameters infra/main.parameters.json \
-  --parameters \
-      apiImage="<acr>.azurecr.io/api:<tag>" \
-      frontendImage="<acr>.azurecr.io/frontend:<tag>"
-
-# 4. Read the outputs (e.g. the public frontend URL)
-az deployment group show -g <rg-name> -n main \
-  --query properties.outputs.frontendUrl.value -o tsv
+az bicep build --file infra/resource-group.bicep --stdout
+az bicep build --file infra/main.bicep --stdout
 ```
 
-> **Chicken-and-egg note:** the images live in the ACR this template creates, so
-> on a first run either point `apiImage` / `frontendImage` at a temporary public
-> placeholder image, deploy once to create the ACR, then build/push and redeploy
-> — **or** split provisioning: create the ACR first, push images, then deploy the
-> apps. The workflow leaves this ordering as a TODO for you to decide.
-
-## Deploy it via the workflow
-
-[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) is an
-OIDC-wired scaffold with `# TODO` steps (checkout → `azure/login` → build/push →
-`az group create` → `az deployment group create` → update apps). It is **inert
-by default**: the `push` trigger is commented out and it needs the OIDC secrets
-below. Set those up, finish the TODO steps with Copilot, then run it from the
-**Actions** tab (`workflow_dispatch`).
-
-Required GitHub **secrets**: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`,
-`AZURE_SUBSCRIPTION_ID`. Required **variables**: `AZURE_RESOURCE_GROUP`,
-`AZURE_LOCATION`. See the header comment in the workflow for the federated-
-credential subject (`repo:<owner>/<repo>:ref:refs/heads/main`). No client secret
-is stored — auth is OIDC only. **Setting up the OIDC federated credential is the
-single most common stumbling block — do it first and verify with a trivial login.**
-
-## Tooling note
-
-The repo's `.vscode/mcp.json` preconfigures an **Azure MCP Server**
-(`@azure/mcp`). You can use it during the challenge to explore/verify Azure
-resources — it's handy but not required by this scaffold.
+Resource names are deterministic within the resource group and include a short
+stable suffix for globally unique ACR and storage-account names. Re-running the
+workflow updates the existing resources and deployments.
