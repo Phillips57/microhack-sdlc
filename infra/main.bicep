@@ -87,6 +87,9 @@ module apiApp 'modules/containerapp.bicep' = if (deployApps) {
     environmentId: environment.outputs.environmentId
     image: apiImage
     targetPort: 3000
+    startupProbePath: '/health/ready'
+    readinessProbePath: '/health/ready'
+    livenessProbePath: '/health/live'
     externalIngress: false
     allowInsecure: true
     registryLoginServer: registry.outputs.loginServer

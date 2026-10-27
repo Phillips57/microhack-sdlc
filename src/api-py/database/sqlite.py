@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -17,7 +18,7 @@ def _resolve_db_file() -> str:
 
 
 @asynccontextmanager
-async def get_connection() -> aiosqlite.Connection:
+async def get_connection() -> AsyncGenerator[aiosqlite.Connection, None]:
     connection = await aiosqlite.connect(_resolve_db_file())
     connection.row_factory = aiosqlite.Row
     await connection.execute("PRAGMA foreign_keys = ON;")

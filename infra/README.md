@@ -17,6 +17,10 @@ and verifies the live cart flow.
   its data is ephemeral and resets when the container restarts or a revision is
   replaced. Use a managed database for persistent or horizontally scaled use.
 - **Log Analytics** receives Container Apps logs.
+- **Health probes** use `/health/ready` for API startup/readiness and
+  `/health/live` for API liveness. Readiness checks database connectivity;
+  liveness only checks that the process is responding. The frontend keeps its
+  `/` probes.
 
 The API is the Python implementation because the shopping cart routes are
 implemented there. The frontend uses same-origin API URLs, so browser requests
@@ -43,6 +47,20 @@ Push to `main` or run **Build, test, and deploy to Azure** with
    pipeline identity.
 5. Deploys the two Container Apps using Bicep.
 6. Exercises products and a cart add/read flow through the public frontend URL.
+
+## SRE Agent observability
+
+The API's Uvicorn access logs and application logs are collected in the
+Container Apps environment's Log Analytics workspace (`octosupply-lab-logs`).
+Connect that workspace to the Azure SRE Agent's **Logs** data source, and add
+the `octosupply-lab-api` and `octosupply-lab-frontend` Container Apps as Azure
+resources. Connect the GitHub repository as a **Code** data source to let the
+agent correlate production telemetry with the deployed application.
+
+Use the API's `/health/live` and `/health/ready` endpoints to distinguish
+process health from database readiness. The SRE Agent can query Container Apps
+logs and Azure Monitor metrics; Container Apps health probes are separate from
+the agent's conversational investigation workflow.
 
 The target resource group must exist before the workflow runs; it validates
 that group and uses it for all deployment operations. An optional

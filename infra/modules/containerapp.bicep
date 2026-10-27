@@ -13,6 +13,15 @@ param image string
 @description('Container listening port.')
 param targetPort int
 
+@description('HTTP path checked by the startup probe.')
+param startupProbePath string = '/'
+
+@description('HTTP path checked by the readiness probe.')
+param readinessProbePath string = '/'
+
+@description('HTTP path checked by the liveness probe.')
+param livenessProbePath string = '/'
+
 @description('Whether ingress is public or environment-internal.')
 param externalIngress bool
 
@@ -90,7 +99,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Startup'
               httpGet: {
-                path: '/'
+                path: startupProbePath
                 port: targetPort
                 scheme: 'HTTP'
               }
@@ -101,7 +110,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/'
+                path: readinessProbePath
                 port: targetPort
                 scheme: 'HTTP'
               }
@@ -111,7 +120,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/'
+                path: livenessProbePath
                 port: targetPort
                 scheme: 'HTTP'
               }

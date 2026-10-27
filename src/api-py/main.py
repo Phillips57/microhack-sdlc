@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
 
-from fastapi import FastAPI
+import aiosqlite
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from database.migrate import initialize_database
+from database.sqlite import get_connection
 from routes.branches import router as branches_router
 from routes.cart import router as cart_router
 from routes.deliveries import router as deliveries_router
@@ -18,6 +21,7 @@ from routes.suppliers import router as suppliers_router
 from utils.errors import register_exception_handlers
 
 app = FastAPI(title="OctoSupply API (Python)", version="1.0.0")
+logger = logging.getLogger(__name__)
 
 configured_origins = os.getenv("API_CORS_ORIGINS")
 if configured_origins:
@@ -60,3 +64,20 @@ async def startup() -> None:
 @app.get("/")
 async def root() -> str:
     return "Hello, world!"
+
+
+@app.get("/health/live")
+async def liveness() -> dict[str, str]:
+    return {"status": "healthy"}
+
+
+@app.get("/health/ready")
+async def readiness(response: Response) -> dict[str, str]:
+    try:
+        async with get_connection() as connection:
+            await connection.execute("SELECT 1;")
+    except (aiosqlite.Error, OSError):
+        logger.exception("Database readiness check failed")
+        response.status_code = 503
+        return {"status": "not_ready", "dependency": "database"}
+    return {"status": "ready"}

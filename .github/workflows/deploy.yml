@@ -188,6 +188,8 @@ jobs:
             sleep 10
           done
 
+          curl --fail --silent --show-error "$FRONTEND_URL/api/health/live" | jq -e '.status == "healthy"' >/dev/null
+          curl --fail --silent --show-error "$FRONTEND_URL/api/health/ready" | jq -e '.status == "ready"' >/dev/null
           curl --fail --silent --show-error "$FRONTEND_URL/api/products" | jq -e 'length > 0' >/dev/null
           CART_ID="$(python -c 'import uuid; print(uuid.uuid4())')"
           curl --fail --silent --show-error \
@@ -197,4 +199,4 @@ jobs:
             "$FRONTEND_URL/api/cart/$CART_ID/items" | jq -e '.itemCount == 1' >/dev/null
           curl --fail --silent --show-error \
             "$FRONTEND_URL/api/cart/$CART_ID" | jq -e '.itemCount == 1 and .total > 0' >/dev/null
-          echo "Frontend and persistent cart flow verified." >> "$GITHUB_STEP_SUMMARY"
+          echo "Frontend, API health probes, and cart flow verified." >> "$GITHUB_STEP_SUMMARY"
