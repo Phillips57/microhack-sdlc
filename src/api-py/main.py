@@ -66,12 +66,12 @@ async def root() -> str:
     return "Hello, world!"
 
 
-@app.get("/health/live")
+@app.get("/api/health/live")
 async def liveness() -> dict[str, str]:
     return {"status": "healthy"}
 
 
-@app.get("/health/ready")
+@app.get("/api/health/ready")
 async def readiness(response: Response) -> dict[str, str]:
     try:
         async with get_connection() as connection:

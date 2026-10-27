@@ -17,8 +17,8 @@ and verifies the live cart flow.
   its data is ephemeral and resets when the container restarts or a revision is
   replaced. Use a managed database for persistent or horizontally scaled use.
 - **Log Analytics** receives Container Apps logs.
-- **Health probes** use `/health/ready` for API startup/readiness and
-  `/health/live` for API liveness. Readiness checks database connectivity;
+- **Health probes** use `/api/health/ready` for API startup/readiness and
+  `/api/health/live` for API liveness. Readiness checks database connectivity;
   liveness only checks that the process is responding. The frontend keeps its
   `/` probes.
 
@@ -57,7 +57,7 @@ the `octosupply-lab-api` and `octosupply-lab-frontend` Container Apps as Azure
 resources. Connect the GitHub repository as a **Code** data source to let the
 agent correlate production telemetry with the deployed application.
 
-Use the API's `/health/live` and `/health/ready` endpoints to distinguish
+Use the API's `/api/health/live` and `/api/health/ready` endpoints to distinguish
 process health from database readiness. The SRE Agent can query Container Apps
 logs and Azure Monitor metrics; Container Apps health probes are separate from
 the agent's conversational investigation workflow.
