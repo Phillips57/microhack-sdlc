@@ -81,13 +81,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Provision resource group with Bicep
+      - name: Verify target resource group
         run: |
-          az deployment sub create \
-            --name "octocat-resource-group-${GITHUB_RUN_ID}" \
-            --location "$AZURE_LOCATION" \
-            --template-file infra/resource-group.bicep \
-            --parameters resourceGroupName="$AZURE_RESOURCE_GROUP" location="$AZURE_LOCATION"
+          az group show \
+            --name "$AZURE_RESOURCE_GROUP" \
+            --query id \
+            --output tsv >/dev/null
 
       - name: Provision shared infrastructure and registry roles
         id: bootstrap

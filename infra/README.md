@@ -24,34 +24,9 @@ go through nginx and never need public access to the API.
 
 ## GitHub setup (one time)
 
-Create an Entra application/service principal for GitHub Actions and configure
-an OIDC federated credential with subject:
-
-```text
-repo:<OWNER>/<REPOSITORY>:ref:refs/heads/main
-```
-
-Set these GitHub Actions **secrets**:
-
-| Secret | Value |
-| --- | --- |
-| `AZURE_CLIENT_ID` | Entra application/client ID |
-| `AZURE_TENANT_ID` | Entra tenant ID |
-| `AZURE_SUBSCRIPTION_ID` | Target subscription ID |
-
-Set these GitHub Actions **variables**:
-
-| Variable | Value |
-| --- | --- |
-| `AZURE_RESOURCE_GROUP` | Name for the deployment resource group |
-| `AZURE_LOCATION` | Azure region supporting Container Apps |
-| `AZURE_CLIENT_OBJECT_ID` | Service principal's object/principal ID |
-
-Grant that principal permission to create the resource group, deploy the
-resources, and assign the two narrowly scoped ACR roles. The simple built-in
-setup is **Contributor** and **User Access Administrator** at the subscription
-scope. A more restrictive custom role is appropriate for a long-lived
-production pipeline. No client secret or registry password is used.
+Follow [OIDC-SETUP.md](./OIDC-SETUP.md) for step-by-step Microsoft Entra
+federated credential setup, Azure role assignments, and GitHub secrets and
+variables. No client secret or registry password is used.
 
 ## Deployment
 
@@ -66,10 +41,13 @@ Push to `main` or run **Build, test, and deploy to Azure** with
 5. Deploys the two Container Apps using Bicep.
 6. Exercises products and a cart add/read flow through the public frontend URL.
 
-The resource group deployment is defined in `resource-group.bicep`; all other
-Azure resources are defined in `main.bicep`. The first Bicep deployment creates
-the registry and supporting resources before any image push. The second deploys
-the app revisions with the newly published image tags.
+The target resource group must exist before the workflow runs; it validates
+that group and uses it for all deployment operations. An optional
+`resource-group.bicep` template is provided for separate subscription-level
+resource group provisioning. All application Azure resources are defined in
+`main.bicep`. The first Bicep deployment creates the registry and supporting
+resources before any image push. The second deploys the app revisions with the
+newly published image tags.
 
 ## Local Bicep validation
 
