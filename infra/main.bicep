@@ -32,13 +32,10 @@ param frontendMaxReplicas int = 3
 var suffix = take(uniqueString(resourceGroup().id), 6)
 var baseName = '${namePrefix}-${environmentName}'
 var registryName = toLower('${namePrefix}${environmentName}${suffix}acr')
-var storageBaseName = take('${namePrefix}${environmentName}', 14)
-var storageAccountName = toLower('${storageBaseName}${suffix}sa')
 var logAnalyticsName = '${baseName}-logs'
 var environmentResourceName = '${baseName}-env'
 var apiAppName = '${baseName}-api'
 var frontendAppName = '${baseName}-frontend'
-var fileShareName = 'appdata'
 var commonTags = {
   project: 'octocat-supply'
   managedBy: 'bicep'
@@ -76,51 +73,6 @@ module environment 'modules/containerapp-env.bicep' = {
   }
 }
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
-  name: storageAccountName
-  location: location
-  tags: commonTags
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {
-    accessTier: 'Hot'
-    allowBlobPublicAccess: false
-    minimumTlsVersion: 'TLS1_2'
-    supportsHttpsTrafficOnly: true
-  }
-}
-
-resource fileService 'Microsoft.Storage/storageAccounts/fileServices@2023-01-01' = {
-  parent: storageAccount
-  name: 'default'
-}
-
-resource fileShare 'Microsoft.Storage/storageAccounts/fileServices/shares@2023-01-01' = {
-  parent: fileService
-  name: fileShareName
-  properties: {
-    shareQuota: 5
-    enabledProtocols: 'SMB'
-  }
-}
-
-resource environmentStorage 'Microsoft.App/managedEnvironments/storages@2024-03-01' = {
-  name: '${environmentResourceName}/appdata'
-  properties: {
-    azureFile: {
-      accountName: storageAccount.name
-      accountKey: storageAccount.listKeys().keys[0].value
-      shareName: fileShare.name
-      accessMode: 'ReadWrite'
-    }
-  }
-  dependsOn: [
-    environment
-  ]
-}
-
 resource pullIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
   name: '${baseName}-pull'
   location: location
@@ -149,30 +101,10 @@ module apiApp 'modules/containerapp.bicep' = if (deployApps) {
       }
       {
         name: 'DB_FILE'
-        value: '/app/data/app.db'
-      }
-      {
-        name: 'DB_ENABLE_WAL'
-        value: 'false'
-      }
-    ]
-    volumes: [
-      {
-        name: 'appdata'
-        storageName: 'appdata'
-        storageType: 'AzureFile'
-      }
-    ]
-    volumeMounts: [
-      {
-        volumeName: 'appdata'
-        mountPath: '/app/data'
+        value: '/tmp/app.db'
       }
     ]
   }
-  dependsOn: [
-    environmentStorage
-  ]
 }
 
 module frontendApp 'modules/containerapp.bicep' = if (deployApps) {

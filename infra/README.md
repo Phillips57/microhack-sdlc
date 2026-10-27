@@ -12,15 +12,18 @@ and verifies the live cart flow.
 - **Azure Container Registry (Basic)** stores both images. Its admin account is
   disabled. A user-assigned managed identity has `AcrPull`; the GitHub Actions
   service principal has `AcrPush`.
-- **Azure Files (Standard LRS)** persists the SQLite database at `/app/data`.
-  The API is intentionally fixed to one replica and disables SQLite WAL on the
-  network share. This supports a persistent demo/cart flow, not a horizontally
-  scaled production database. Move to a managed database before scaling the API.
+- **SQLite** is stored in the API container's local filesystem. The API is fixed
+  to one replica so the cart flow works consistently during a deployment, but
+  its data is ephemeral and resets when the container restarts or a revision is
+  replaced. Use a managed database for persistent or horizontally scaled use.
 - **Log Analytics** receives Container Apps logs.
 
 The API is the Python implementation because the shopping cart routes are
 implemented there. The frontend uses same-origin API URLs, so browser requests
-go through nginx and never need public access to the API.
+go through nginx and never need public access to the API. This lab subscription
+disables public networking and shared-key access on storage accounts; rather
+than weakening those controls or requiring a private network, the demo keeps
+SQLite local to its single API replica.
 
 ## GitHub setup (one time)
 
