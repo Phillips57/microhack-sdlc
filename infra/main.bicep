@@ -50,6 +50,9 @@ module registry 'modules/registry.bicep' = {
   params: {
     location: location
     registryName: registryName
+    pullIdentityId: pullIdentity.id
+    pullPrincipalId: pullIdentity.properties.principalId
+    githubActionsPrincipalId: githubActionsPrincipalId
     tags: commonTags
   }
 }
@@ -124,33 +127,6 @@ resource pullIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
   tags: commonTags
 }
 
-resource registryResource 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
-  name: registryName
-}
-
-var acrPullRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
-var acrPushRoleId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '8311e382-0749-4cb8-b61a-304f252e45ec')
-
-resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(registryResource.id, pullIdentity.id, acrPullRoleId)
-  scope: registryResource
-  properties: {
-    roleDefinitionId: acrPullRoleId
-    principalId: pullIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource githubAcrPushAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!empty(githubActionsPrincipalId)) {
-  name: guid(registryResource.id, githubActionsPrincipalId, acrPushRoleId)
-  scope: registryResource
-  properties: {
-    roleDefinitionId: acrPushRoleId
-    principalId: githubActionsPrincipalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
 module apiApp 'modules/containerapp.bicep' = if (deployApps) {
   name: 'api-app'
   params: {
@@ -195,7 +171,6 @@ module apiApp 'modules/containerapp.bicep' = if (deployApps) {
     ]
   }
   dependsOn: [
-    acrPullAssignment
     environmentStorage
   ]
 }
@@ -227,7 +202,6 @@ module frontendApp 'modules/containerapp.bicep' = if (deployApps) {
   }
   dependsOn: [
     apiApp
-    acrPullAssignment
   ]
 }
 

@@ -22,8 +22,8 @@ jobs:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       AZURE_CLIENT_OBJECT_ID: ${{ vars.AZURE_CLIENT_OBJECT_ID }}
       IMAGE_TAG: ${{ github.sha }}
-      NAME_PREFIX: octocat
-      ENVIRONMENT_NAME: dev
+      NAME_PREFIX: octosupply
+      ENVIRONMENT_NAME: lab
 
     steps:
       - name: Checkout
