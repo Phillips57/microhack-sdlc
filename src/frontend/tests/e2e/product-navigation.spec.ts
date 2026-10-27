@@ -54,6 +54,33 @@ test.describe('Product catalog discovery', () => {
     await expect(description).toBeVisible();
   });
 
+  test('Search for a product by SKU without regard to case', async ({ page }) => {
+    await page.goto('/products');
+
+    const searchInput = page.getByLabel('Search products');
+    await searchInput.fill('cat');
+    await expect(searchInput).toBeFocused();
+    await searchInput.fill('cat-flix-001');
+
+    await expect(page.locator('h3:has-text("CatFlix Entertainment Portal")')).toBeVisible();
+    await expect(page.locator('h3')).toHaveCount(1);
+  });
+
+  test('Filter by price and clear filters to restore the catalog', async ({ page }) => {
+    await page.goto('/products');
+
+    await page.getByLabel('Minimum price').fill('90');
+    await page.getByLabel('Maximum price').fill('100');
+    await page.getByLabel('Search products').fill('thermo');
+
+    await expect(page.locator('h3:has-text("ThermoNest Deluxe")')).toBeVisible();
+    await expect(page.locator('h3')).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+
+    await expect(page.locator('h3')).toHaveCount(12);
+  });
+
   test('Search for a product with no matches', async ({ page }) => {
     // Given I am viewing the product catalog
     await page.goto('/products');

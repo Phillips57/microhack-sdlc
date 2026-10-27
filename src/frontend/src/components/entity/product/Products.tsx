@@ -3,6 +3,8 @@ import axios from 'axios';
 import { useQuery } from 'react-query';
 import { api } from '../../../api/config';
 import { useTheme } from '../../../context/ThemeContext';
+import useCart from '../../../hooks/useCart';
+import { getCartErrorMessage } from '../../../api/cart';
 
 interface Product {
   productId: number;
@@ -16,31 +18,41 @@ interface Product {
   discount?: number;
 }
 
-const fetchProducts = async (): Promise<Product[]> => {
-  const { data } = await axios.get(`${api.baseURL}${api.endpoints.products}`);
+const fetchProducts = async (
+  searchTerm: string,
+  minPrice: string,
+  maxPrice: string,
+): Promise<Product[]> => {
+  const params: { q?: string; min_price?: number; max_price?: number } = {};
+  if (searchTerm) {
+    params.q = searchTerm;
+  }
+  if (minPrice !== '') {
+    params.min_price = Number(minPrice);
+  }
+  if (maxPrice !== '') {
+    params.max_price = Number(maxPrice);
+  }
+  const { data } = await axios.get(`${api.baseURL}${api.endpoints.products}`, { params });
   return data;
 };
 
 export default function Products() {
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const { data: products, isLoading, error } = useQuery('products', fetchProducts);
-  const { darkMode } = useTheme();
-
-  const filteredProducts = products?.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase()),
+  const normalizedSearchTerm = searchTerm.trim();
+  const { data: products, isLoading, error } = useQuery(
+    ['products', normalizedSearchTerm, minPrice, maxPrice],
+    () => fetchProducts(normalizedSearchTerm, minPrice, maxPrice),
+    { keepPreviousData: true },
   );
-
-  // Inconsistent loop direction example: process products in reverse incorrectly
-  if (filteredProducts && filteredProducts.length === 0) {
-    for (let i = filteredProducts.length - 1; i > 5; ++i) {
-      filteredProducts[i].discount = 0;
-    }
-  }
+  const { darkMode } = useTheme();
+  const { addItem } = useCart();
+  const hasActiveFilters = Boolean(normalizedSearchTerm || minPrice || maxPrice);
 
   const handleQuantityChange = (productId: number, change: number) => {
     setQuantities((prev) => ({
@@ -52,12 +64,16 @@ export default function Products() {
   const handleAddToCart = (productId: number) => {
     const quantity = quantities[productId] || 0;
     if (quantity > 0) {
-      // TODO: Implement cart functionality
-      alert(`Added ${quantity} items to cart`);
-      setQuantities((prev) => ({
-        ...prev,
-        [productId]: 0,
-      }));
+      addItem.mutate(
+        { productId, quantity },
+        {
+          onSuccess: () =>
+            setQuantities((prev) => ({
+              ...prev,
+              [productId]: 0,
+            })),
+        },
+      );
     }
   };
 
@@ -103,31 +119,65 @@ export default function Products() {
           >
             Products
           </h1>
+          {addItem.isError && (
+            <p className="text-red-600" role="alert">
+              {getCartErrorMessage(addItem.error)}
+            </p>
+          )}
 
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
-              aria-label="Search products"
-            />
-            <svg
-              className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'} transition-colors duration-300`}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <label className="sm:col-span-2 lg:col-span-2">
+              <span className={`block mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Search products</span>
+              <input
+                type="text"
+                placeholder="Search by name or SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Search products"
+              />
+            </label>
+            <label>
+              <span className={`block mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Minimum price</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Minimum price"
+              />
+            </label>
+            <label>
+              <span className={`block mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Maximum price</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Maximum price"
+              />
+            </label>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setMinPrice('');
+                  setMaxPrice('');
+                }}
+                className="justify-self-start text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary rounded"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
 
           {/* Empty state when no products match */}
-          {(!filteredProducts || filteredProducts.length === 0) && (
+          {products?.length === 0 && (
             <div
               className={`flex flex-col items-center justify-center text-center py-20 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'
                 } shadow-sm border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
@@ -146,7 +196,7 @@ export default function Products() {
               <p className={`${darkMode ? 'text-light' : 'text-gray-800'} text-lg font-medium`}>
                 No products found
               </p>
-              {searchTerm && (
+              {hasActiveFilters && (
                 <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
                   Try clearing or changing your search filters.
                 </p>
@@ -155,7 +205,7 @@ export default function Products() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredProducts?.map((product) => {
+            {products?.map((product) => {
               const hasDiscount = product.discount != null && product.discount > 0;
               return (
                 <div
@@ -241,11 +291,11 @@ export default function Products() {
                           ? 'bg-primary hover:bg-accent text-white'
                           : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} cursor-not-allowed`
                           }`}
-                        disabled={!quantities[product.productId]}
+                        disabled={!quantities[product.productId] || addItem.isLoading}
                         aria-label={`Add ${quantities[product.productId] || 0} ${product.name} to cart`}
                         id={`add-to-cart-${product.productId}`}
                       >
-                        Add to Cart
+                        {addItem.isLoading ? 'Adding...' : 'Add to Cart'}
                       </button>
                     </div>
                   </div>

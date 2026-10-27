@@ -2,10 +2,12 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useState } from 'react';
+import useCart from '../hooks/useCart';
 
 export default function Navigation() {
   const { isLoggedIn, isAdmin, logout } = useAuth();
   const { darkMode, toggleTheme } = useTheme();
+  const { data: cart } = useCart();
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
 
   return (
@@ -85,6 +87,18 @@ export default function Navigation() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
+            <Link
+              to="/cart"
+              className={`${darkMode ? 'text-light hover:text-primary' : 'text-gray-700 hover:text-primary'} px-2 py-2 text-sm font-medium transition-colors`}
+              aria-label={`Shopping cart, ${cart?.itemCount ?? 0} items`}
+            >
+              Cart
+              {cart && cart.itemCount > 0 && (
+                <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-xs text-white">
+                  {cart.itemCount}
+                </span>
+              )}
+            </Link>
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full focus:outline-none transition-colors"

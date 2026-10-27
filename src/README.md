@@ -63,7 +63,7 @@ Cross-platform build automation supporting all language variants.
 # Outside the dev container, install dependencies manually.
 make install
 
-# Start with TypeScript API (default, port 3000)
+# Start with Python API (includes the shopping cart, port 3000)
 make dev
 
 # Start with a specific API variant
@@ -107,7 +107,7 @@ make test-java
 | Java       | 3000 | Spring Boot 3         | Java       |
 | Frontend   | 5137 | React 18 + Vite       | TypeScript |
 
-All API variants expose the same REST endpoints and connect to a SQLite database at `./data/app.db` by default. Override with the `DB_FILE` environment variable.
+All API variants connect to a SQLite database at `./data/app.db` by default. Override with the `DB_FILE` environment variable. The shopping cart endpoints are currently implemented in the Python API variant, which is why `make dev` starts that variant by default; the other API variants remain available through their explicit `make dev-*` targets.
 
 Swagger/OpenAPI docs are available at `/api-docs` for each running API.
 

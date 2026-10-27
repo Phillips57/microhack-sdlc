@@ -7,9 +7,34 @@ from utils.errors import DatabaseException, NotFoundException
 
 
 class ProductsRepository:
-    async def find_all(self) -> list[Product]:
+    async def find_all(
+        self,
+        q: str | None = None,
+        min_price: float | None = None,
+        max_price: float | None = None,
+    ) -> list[Product]:
+        conditions: list[str] = []
+        parameters: list[str | float] = []
+
+        search_term = q.strip() if q else ""
+        if search_term:
+            conditions.append(
+                "(instr(lower(name), lower(?)) > 0 OR instr(lower(sku), lower(?)) > 0)"
+            )
+            parameters.extend((search_term, search_term))
+        if min_price is not None:
+            conditions.append("ROUND(price * (1 - COALESCE(discount, 0)), 2) >= ?")
+            parameters.append(min_price)
+        if max_price is not None:
+            conditions.append("ROUND(price * (1 - COALESCE(discount, 0)), 2) <= ?")
+            parameters.append(max_price)
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         async with get_connection() as connection:
-            cursor = await connection.execute("SELECT * FROM products ORDER BY product_id;")
+            cursor = await connection.execute(
+                f"SELECT * FROM products {where_clause} ORDER BY product_id;",
+                parameters,
+            )
             rows = await cursor.fetchall()
         return [self._map_row(row) for row in rows]
 

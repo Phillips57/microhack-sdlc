@@ -18,6 +18,17 @@ Default API URL: `http://localhost:3000`
 - `API_CORS_ORIGINS` (comma-separated override; optional)
 - `DB_MIGRATIONS_DIR` (optional override for migrations directory)
 
+## Shopping cart
+
+The cart API persists a browser-specific cart using the UUID stored by the frontend:
+
+- `GET /api/cart/{cartId}` returns cart items, item count, and the discounted total.
+- `POST /api/cart/{cartId}/items` adds `{ "productId": 1, "quantity": 2 }` (adding an existing product increases its quantity).
+- `PUT /api/cart/{cartId}/items/{productId}` sets `{ "quantity": 3 }`.
+- `DELETE /api/cart/{cartId}/items/{productId}` removes a product.
+
+The cart endpoints manage cart contents only; no payment is processed.
+
 ## Database
 
 On startup, the API applies SQL migrations from:

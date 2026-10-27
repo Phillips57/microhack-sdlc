@@ -29,7 +29,7 @@ PLAYWRIGHT_BROWSERS_PATH ?= $(HOME)/.cache/ms-playwright
 # forwarded host pattern: https://<codespace>-<port>.<domain>.
 CODESPACES_DOMAIN := $(if $(GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN),$(GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN),app.github.dev)
 define resolve_api_url
-$(if $(strip $(CODESPACE_NAME)),https://$(CODESPACE_NAME)-$(1).$(CODESPACES_DOMAIN),http://localhost:$(1))
+$(if $(strip $(CODESPACE_NAME)),https://$(CODESPACE_NAME)-$(1).$(CODESPACES_DOMAIN),http://127.0.0.1:$(1))
 endef
 
 TS_API_URL := $(call resolve_api_url,3000)
@@ -37,7 +37,7 @@ CS_API_URL := $(call resolve_api_url,3000)
 PY_API_URL := $(call resolve_api_url,3000)
 JAVA_API_URL := $(call resolve_api_url,3000)
 
-# Default API target (TypeScript)
+# Default API target (TypeScript for API-specific targets)
 API_DIR := $(API_TS_DIR)
 
 .DEFAULT_GOAL := help
@@ -87,7 +87,7 @@ install-frontend: ## Install frontend dependencies
 ##@ Development — Full Stack (API + Frontend)
 
 .PHONY: dev
-dev: dev-ts ## Start TypeScript API + frontend (default)
+dev: dev-py ## Start Python API + frontend (default; includes the cart)
 
 .PHONY: dev-ts
 dev-ts: ## Start TypeScript API (port 3000) + frontend
