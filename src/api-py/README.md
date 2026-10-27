@@ -18,6 +18,15 @@ Default API URL: `http://localhost:3000`
 - `API_CORS_ORIGINS` (comma-separated override; optional)
 - `DB_MIGRATIONS_DIR` (optional override for migrations directory)
 
+## Health checks
+
+- `GET /api/health/live` confirms the API process is responding.
+- `GET /api/health/ready` checks SQLite connectivity and returns HTTP 503 when
+  the database is unavailable.
+
+Use the readiness endpoint for startup and readiness probes, and the liveness
+endpoint for liveness probes.
+
 ## Shopping cart
 
 The cart API persists a browser-specific cart using the UUID stored by the frontend:
