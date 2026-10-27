@@ -47,6 +47,10 @@ $RepoArgs = @()
 if ($Repo -ne "") {
     $RepoArgs = @("--repo", $Repo)
 }
+$RepoViewArgs = @()
+if ($Repo -ne "") {
+    $RepoViewArgs = @($Repo)
+}
 
 # ---------------------------------------------------------------------------
 # Pre-flight checks: gh installed + authenticated
@@ -56,10 +60,26 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-gh auth status *> $null
+gh auth status --active *> $null
 if ($LASTEXITCODE -ne 0) {
     Write-Error "GitHub CLI is not authenticated. Run 'gh auth login' (with 'repo' scope) and re-run this script."
     exit 1
+}
+
+if (-not $DryRun) {
+    $repoInfo = gh repo view @RepoViewArgs --json hasIssuesEnabled,nameWithOwner --jq "[.nameWithOwner, (.hasIssuesEnabled | tostring)] | @tsv" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Could not inspect the target repository:`n$repoInfo"
+        exit 1
+    }
+    $repoInfoParts = $repoInfo -split "`t", 2
+    $TargetRepo = $repoInfoParts[0]
+    $issuesEnabled = $repoInfoParts[1]
+    if ($issuesEnabled -ne "true") {
+        $target = if ($Repo -ne "") { $Repo } else { "the current repository" }
+        Write-Error "Issues are disabled for $target. Enable Issues in the repository's Settings > General > Features, then re-run this script."
+        exit 1
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -193,8 +213,12 @@ foreach ($label in $Labels) {
 # ---------------------------------------------------------------------------
 $ExistingTitles = @()
 if (-not $DryRun) {
-    $raw = gh issue list --state open --limit 200 --json title --jq ".[].title" @RepoArgs 2>$null
-    if ($LASTEXITCODE -eq 0 -and $raw) {
+    $raw = gh api "repos/$TargetRepo/issues?state=open&per_page=100" --paginate --jq ".[] | select(.pull_request == null) | .title" 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Could not retrieve existing issues from ${TargetRepo}:`n$raw"
+        exit 1
+    }
+    if ($raw) {
         $ExistingTitles = @($raw -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
     }
 }

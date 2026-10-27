@@ -25,7 +25,9 @@ backlog items in the script (and keep it in sync with `assets/backlog.md`).
 ### Prerequisites
 
 - **GitHub CLI** installed — https://cli.github.com/
-- **Authenticated** with `repo` scope — `gh auth login`
+- **Authenticated** with `repo` scope — `gh auth login`. The scripts check the active
+  GitHub CLI account, so an expired inactive account saved in `gh` will not block them.
+- **Issues enabled** in the target repository (Settings → General → Features).
 
 If `gh` is missing or unauthenticated, the scripts stop with a clear, actionable message before making
 any changes.

@@ -32,6 +32,7 @@ set -euo pipefail
 
 REPO=""
 DRY_RUN=false
+TARGET_REPO=""
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -66,6 +67,10 @@ REPO_ARGS=()
 if [[ -n "$REPO" ]]; then
   REPO_ARGS=(--repo "$REPO")
 fi
+REPO_VIEW_ARGS=()
+if [[ -n "$REPO" ]]; then
+  REPO_VIEW_ARGS=("$REPO")
+fi
 
 # ---------------------------------------------------------------------------
 # Pre-flight checks: gh installed + authenticated
@@ -78,12 +83,26 @@ EOF
   exit 1
 fi
 
-if ! gh auth status >/dev/null 2>&1; then
+if ! gh auth status --active >/dev/null 2>&1; then
   cat >&2 <<'EOF'
 Error: GitHub CLI is not authenticated.
 Run 'gh auth login' (with 'repo' scope) and re-run this script.
 EOF
   exit 1
+fi
+
+if ! $DRY_RUN; then
+  if ! REPO_INFO="$(gh repo view "${REPO_VIEW_ARGS[@]}" --json hasIssuesEnabled,nameWithOwner --jq '[.nameWithOwner, (.hasIssuesEnabled | tostring)] | @tsv' 2>&1)"; then
+    printf 'Error: Could not inspect the target repository:\n%s\n' "$REPO_INFO" >&2
+    exit 1
+  fi
+  TARGET_REPO="${REPO_INFO%%$'\t'*}"
+  ISSUES_ENABLED="${REPO_INFO#*$'\t'}"
+  if [[ "$ISSUES_ENABLED" != "true" ]]; then
+    echo "Error: Issues are disabled for ${REPO:-the current repository}." >&2
+    echo "Enable Issues in the repository's Settings > General > Features, then re-run this script." >&2
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -215,7 +234,10 @@ done
 # ---------------------------------------------------------------------------
 EXISTING_TITLES=""
 if ! $DRY_RUN; then
-  EXISTING_TITLES="$(gh issue list --state open --limit 200 --json title --jq '.[].title' "${REPO_ARGS[@]}" 2>/dev/null || true)"
+  if ! EXISTING_TITLES="$(gh api "repos/${TARGET_REPO}/issues?state=open&per_page=100" --paginate --jq '.[] | select(.pull_request == null) | .title' 2>&1)"; then
+    printf 'Error: Could not retrieve existing issues from %s:\n%s\n' "$TARGET_REPO" "$EXISTING_TITLES" >&2
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------
